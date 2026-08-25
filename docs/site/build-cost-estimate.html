@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sentinel — Build Cost Estimate</title>
+<meta name="description" content="Sentinel build cost estimate: one-off build costs, per-device running costs, subscription pricing, break-even, and sensitivity.">
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --ink: #1c2733;
+    --ink-soft: #51606f;
+    --ink-faint: #7b8794;
+    --line: #e3e7ec;
+    --accent: #0f5c8c;
+    --accent-ink: #ffffff;
+    --accent-soft: #e8f1f7;
+    --good: #1e7a46;
+    --good-soft: #e6f4ec;
+    --warn: #8a5a00;
+    --warn-soft: #fdf3e0;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(28,39,51,.06), 0 4px 14px rgba(28,39,51,.05);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+
+  /* Header */
+  header.site {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+  }
+  .site-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 14px 0; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+  .brand .dot {
+    width: 28px; height: 28px; border-radius: 8px; background: var(--accent);
+    color: var(--accent-ink); display: grid; place-items: center; font-size: 14px; font-weight: 800;
+  }
+  nav.toc { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav.toc a {
+    color: var(--ink-soft); text-decoration: none; font-size: 14px;
+    padding: 6px 10px; border-radius: 8px;
+  }
+  nav.toc a:hover { background: var(--accent-soft); color: var(--accent); }
+  nav.toc a:focus-visible, a.button:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px;
+  }
+
+  /* Hero */
+  .hero { padding: 48px 0 32px; }
+  .hero h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: 1.2; margin: 0 0 12px; }
+  .hero p.lede { color: var(--ink-soft); max-width: 46rem; margin: 0 0 28px; font-size: 1.05rem; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  .stat {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .stat .label { font-size: 13px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .06em; }
+  .stat .value { font-size: 1.7rem; font-weight: 750; margin-top: 4px; }
+  .stat .note { font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+  .stat.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .stat.primary .label, .stat.primary .note { color: #cfe3f0; }
+
+  /* Sections */
+  main section { padding: 36px 0; }
+  main section + section { border-top: 1px solid var(--line); }
+  h2 { font-size: 1.35rem; margin: 0 0 6px; }
+  .section-sub { color: var(--ink-soft); margin: 0 0 20px; max-width: 46rem; }
+  h3 { font-size: 1.05rem; margin: 28px 0 10px; }
+
+  /* Cards & tables */
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .card .card-body { padding: 18px 20px; }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  caption {
+    text-align: left; padding: 14px 20px 10px; font-weight: 700; font-size: 15px;
+  }
+  th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--ink-faint); background: #fbfcfd; white-space: nowrap;
+  }
+  tbody tr:last-child td, tfoot td { border-bottom: none; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tfoot td { font-weight: 700; background: #fbfcfd; border-top: 2px solid var(--line); }
+  tbody tr:hover { background: #fafcfe; }
+
+  .pill {
+    display: inline-block; font-size: 12px; font-weight: 650; padding: 2px 9px;
+    border-radius: 999px; white-space: nowrap;
+  }
+  .pill.good { background: var(--good-soft); color: var(--good); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+  .pill.info { background: var(--accent-soft); color: var(--accent); }
+
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 14px 18px; margin: 18px 0; color: var(--ink); font-size: 15px;
+  }
+  .callout.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .callout strong { font-weight: 700; }
+
+  ul.plain { margin: 10px 0 0; padding-left: 20px; color: var(--ink-soft); }
+  ul.plain li { margin: 6px 0; }
+  ul.plain li strong { color: var(--ink); }
+
+  /* Break-even timeline */
+  .timeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .mile {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .mile .m { font-size: 12.5px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; }
+  .mile .fleet { font-size: 13px; color: var(--ink-faint); margin-top: 6px; }
+  .mile .cash { font-weight: 750; margin-top: 2px; }
+  .mile .cash.pos { color: var(--good); }
+  .mile .cash.neg { color: #b3372f; }
+
+  /* Footer */
+  footer.site {
+    border-top: 1px solid var(--line); background: var(--surface);
+    padding: 24px 0 40px; color: var(--ink-faint); font-size: 14px;
+  }
+  footer.site a { color: var(--accent); }
+
+  @media (max-width: 640px) {
+    .hero { padding: 32px 0 24px; }
+    main section { padding: 28px 0; }
+    th, td { padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap site-inner">
+    <div class="brand"><span class="dot" aria-hidden="true">S</span> Sentinel</div>
+    <nav class="toc" aria-label="Page sections">
+      <a href="#one-off">One-off costs</a>
+      <a href="#recurring">Per-device</a>
+      <a href="#breakeven">Break-even</a>
+      <a href="#sensitivity">Sensitivity</a>
+      <a href="#assumptions">Assumptions</a>
+      <a href="#td-keeps">TD keeps</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <h1>Build cost estimate</h1>
+    <p class="lede">What it costs to build Sentinel with an India-based team, what one device costs to run each month, and when the venture pays for itself. All figures in SGD unless marked INR, converted at S$1&nbsp;=&nbsp;₹75. One-off build cost: <strong>S$62,700</strong> excluding the Technical Director retainer.</p>
+    <div class="stats">
+      <div class="stat primary">
+        <div class="label">One-off build</div>
+        <div class="value">S$62,700</div>
+        <div class="note">Low case, excludes Technical Director retainer</div>
+      </div>
+      <div class="stat">
+        <div class="label">Per device / month</div>
+        <div class="value">S$51 → 15</div>
+        <div class="note">100-device fleet → 1,000-device fleet</div>
+      </div>
+      <div class="stat">
+        <div class="label">Monthly cash-positive</div>
+        <div class="value">Month 4</div>
+        <div class="note">First month CIS pays, at S$75/device</div>
+      </div>
+      <div class="stat">
+        <div class="label">One-off spend recovered</div>
+        <div class="value">Month 9</div>
+        <div class="note">At 500 devices by M12</div>
+      </div>
+    </div>
+  </div>
+
+  <section id="one-off" aria-labelledby="one-off-h">
+    <h2 id="one-off-h">1. One-off build costs</h2>
+    <p class="section-sub">Everything spent before the first paying deployment. The software line is built bottom-up from man-days by role at India day rates — 409 person-days across eleven roles with a 10% rework buffer. Of those, 123 days (S$18,160) are delivered by the Technical Director, Mahesh, personally, so the payable software line is the reduced “New Cost” of <strong>S$33,657 (₹2,524,300)</strong>.</p>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <caption>One-off build cost bands</caption>
+          <thead>
+            <tr><th scope="col">Line item</th><th scope="col" class="num">Low</th><th scope="col" class="num">Likely</th><th scope="col" class="num">High</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Software build — India team, 286 man-days after the Technical Director keeps 123 days in-house (the S$33,657 “New Cost”)</td>
+              <td class="num">30,000</td><td class="num">33,657</td><td class="num">42,000</td>
+            </tr>
+            <tr>
+              <td>Device prototyping — India, two rounds: design fees, ~20 prototype units, bench and field testing</td>
+              <td class="num">8,500</td><td class="num">16,000</td><td class="num">24,000</td>
+            </tr>
+            <tr>
+              <td>Security and privacy reviews — DPIA and counsel, threat model, penetration test, supply-chain and OTA review</td>
+              <td class="num">8,500</td><td class="num">14,500</td><td class="num">22,000</td>
+            </tr>
+            <tr>
+              <td>Patent filing in India — agent, government, drafting</td>
+              <td class="num">2,500</td><td class="num">4,500</td><td class="num">6,000</td>
+            </tr>
+            <tr>
+              <td>Incorporation and legal — Pte Ltd, NDA, retainer, standard contracts</td>
+              <td class="num">3,000</td><td class="num">5,000</td><td class="num">8,000</td>
+            </tr>
+            <tr>
+              <td>Cloud and infrastructure setup — Azure Singapore tenant, Terraform baseline, CI/CD (setup only)</td>
+              <td class="num">4,500</td><td class="num">8,500</td><td class="num">12,000</td>
+            </tr>
+            <tr>
+              <td>Technical Director retainer (3–4 months) <span class="pill warn">TBD</span></td>
+              <td class="num">—</td><td class="num">—</td><td class="num">—</td>
+            </tr>
+            <tr>
+              <td>Contingency 10% — the price of timeline risk R-019, not padding</td>
+              <td class="num">5,700</td><td class="num">8,200</td><td class="num">11,400</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr><td>Total excluding retainer</td><td class="num">62,700</td><td class="num">90,357</td><td class="num">125,400</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <div class="callout">
+      The one-off build total is <strong>S$62,700</strong> at the low case (S$90,357 likely, S$125,400 high), excluding the retainer. The S$18,160 of the Technical Director’s own labour is a <strong>contribution in kind, not cash out</strong> — it substitutes for contracted spend rather than adding to the budget. Add the retainer at 3–4 × the agreed monthly figure: at S$10,000 a month the likely case is roughly <strong>S$120,000 all-in</strong>.
+    </div>
+
+    <h3>Software man-day roll-up (base build, before the 10% buffer)</h3>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th scope="col">Role</th><th scope="col" class="num">Days</th><th scope="col" class="num">INR/day</th><th scope="col" class="num">SGD</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Tech Lead / Architect</td><td class="num">32</td><td class="num">15,000</td><td class="num">6,400</td></tr>
+            <tr><td>Embedded / Firmware Engineer</td><td class="num">55</td><td class="num">12,000</td><td class="num">8,800</td></tr>
+            <tr><td>AI / RAG Engineer</td><td class="num">35</td><td class="num">12,000</td><td class="num">5,600</td></tr>
+            <tr><td>Senior Full-stack Engineer</td><td class="num">45</td><td class="num">10,000</td><td class="num">6,000</td></tr>
+            <tr><td>Mid Full-stack Engineer</td><td class="num">50</td><td class="num">6,000</td><td class="num">4,000</td></tr>
+            <tr><td>DevOps / Cloud Engineer</td><td class="num">25</td><td class="num">10,000</td><td class="num">3,300</td></tr>
+            <tr><td>Mobile Engineer</td><td class="num">15</td><td class="num">8,000</td><td class="num">1,600</td></tr>
+            <tr><td>UI / UX Designer</td><td class="num">27</td><td class="num">7,000</td><td class="num">2,500</td></tr>
+            <tr><td>QA Engineer</td><td class="num">40</td><td class="num">5,000</td><td class="num">2,700</td></tr>
+            <tr><td>Security Consultant</td><td class="num">8</td><td class="num">18,000</td><td class="num">1,900</td></tr>
+            <tr><td>Project Manager</td><td class="num">40</td><td class="num">8,000</td><td class="num">4,300</td></tr>
+          </tbody>
+          <tfoot>
+            <tr><td>Total (372 base days)</td><td class="num">372</td><td class="num"></td><td class="num">47,100 → 51,800 incl. buffer</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <p class="section-sub" style="margin-top:14px">Firmware is the single largest role line, as it should be — the device is the critical path.</p>
+  </section>
+
+  <section id="recurring" aria-labelledby="recurring-h">
+    <h2 id="recurring-h">2. Recurring per-device monthly cost</h2>
+    <p class="section-sub">What one wrist on one officer costs per month. The ops team allocation is what moves with fleet size.</p>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th scope="col">Cost line</th><th scope="col">Basis</th><th scope="col" class="num">100 devices</th><th scope="col" class="num">500</th><th scope="col" class="num">1,000</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Hardware amortisation</td><td>S$45 unit over 24 months; devices recycle across officers (R-007)</td><td class="num">2</td><td class="num">2</td><td class="num">2</td></tr>
+            <tr><td>SIM and connectivity</td><td>S$5.50 volume target (R-003); S$8 fallback</td><td class="num">5.50</td><td class="num">5.50</td><td class="num">5.50</td></tr>
+            <tr><td>Cloud hosting</td><td>Azure Singapore, PDPA-compliant; storage, compute, monitoring</td><td class="num">2</td><td class="num">2</td><td class="num">2</td></tr>
+            <tr><td>Model inference</td><td>~200 queries per device per month, scope constrained (C-010)</td><td class="num">1</td><td class="num">1</td><td class="num">1</td></tr>
+            <tr><td>Platform ops team — India</td><td>S$4,000/month (two mid engineers plus partial DevOps), divided across fleet</td><td class="num">40</td><td class="num">8</td><td class="num">4</td></tr>
+          </tbody>
+          <tfoot>
+            <tr><td>Total per device per month</td><td></td><td class="num">51</td><td class="num">19</td><td class="num">15</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <div class="callout warn">
+      Below 500 devices we are an ops team with a hardware hobby. The subscription price only becomes a product price once the fleet amortises the team.
+    </div>
+  </section>
+
+  <section id="breakeven" aria-labelledby="breakeven-h">
+    <h2 id="breakeven-h">3. Subscription pricing and break-even</h2>
+    <p class="section-sub">What the venture charges the agency per device per month. Pricing conversations anchor on measured pilot economics, not this model (R-022).</p>
+
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <caption>Price for target gross margin, by fleet size</caption>
+          <thead>
+            <tr><th scope="col">Fleet</th><th scope="col" class="num">Per-device cost</th><th scope="col" class="num">Price at 50% margin</th><th scope="col" class="num">Price at 70% margin</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>100</td><td class="num">51</td><td class="num">101</td><td class="num">169</td></tr>
+            <tr><td>500</td><td class="num">19</td><td class="num">37</td><td class="num">62</td></tr>
+            <tr><td>1,000</td><td class="num">15</td><td class="num">29</td><td class="num">49</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Break-even model</h3>
+    <p class="section-sub">Assumptions: CIS deploys 100 devices at M4, fleet grows linearly to 500 by M12 and holds, subscription S$75 per device per month, one-off spend at S$85,000 excluding retainer, contribution S$56 per device at the 500-fleet cost.</p>
+    <div class="timeline">
+      <div class="mile">
+        <div class="m">Month 4</div>
+        <div class="fleet">Fleet: 100 · Contribution +7,400</div>
+        <div class="cash neg">−77,800</div>
+      </div>
+      <div class="mile">
+        <div class="m">Month 6</div>
+        <div class="fleet">Fleet: 200 · Contribution +14,900</div>
+        <div class="cash neg">−51,700</div>
+      </div>
+      <div class="mile">
+        <div class="m">Month 9</div>
+        <div class="fleet">Fleet: 350 · Contribution +26,100</div>
+        <div class="cash pos">+15,500</div>
+      </div>
+      <div class="mile">
+        <div class="m">Month 12</div>
+        <div class="fleet">Fleet: 500 · Contribution +37,400</div>
+        <div class="cash pos">+116,400</div>
+      </div>
+    </div>
+    <div class="callout">
+      Monthly cash turns positive at <strong>M4</strong> — the first month CIS pays. The one-off build cost is recovered by <strong>M9</strong>. Caveat: device purchases are cash up front — 500 units at S$45 is ~S$22,500 of working capital, and break-even moves right if the fleet ramp is slower than assumed.
+    </div>
+  </section>
+
+  <section id="sensitivity" aria-labelledby="sensitivity-h">
+    <h2 id="sensitivity-h">4. Sensitivity — the numbers that move the answer most</h2>
+    <p class="section-sub">Five inputs swing the result. Each maps to a risk we already track.</p>
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th scope="col">Swing</th><th scope="col">Per-device cost (500 fleet)</th><th scope="col">Effect on break-even</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Unit hardware S$30 → 100 (C-005, R-003)</td><td>~S$5 move</td><td>Payback slips ~1 month at worst. <span class="pill info">Least sensitive</span></td></tr>
+            <tr><td>SIM at S$8 not S$5.50 (R-003)</td><td>~S$2.50 move</td><td>~1 month later at S$75 pricing; worse if pricing is squeezed</td></tr>
+            <tr><td>Fleet at M12: 300 vs 500 vs 750</td><td>Contribution accumulates slower or faster</td><td><span class="pill warn">Biggest swing</span> payback moves from ~M25 to ~M15 around the M19-ish base</td></tr>
+            <tr><td>Inference S$1 → 6 per device (scope creep past C-010)</td><td>~S$5 move</td><td>Negligible at current scope; material only if AI usage escapes the guardrails</td></tr>
+            <tr><td>Platform team S$3k → 8k per month</td><td>Direct, recurring</td><td><span class="pill warn">Second biggest</span> every S$1k on the team pushes break-even out ~2 months</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="callout">
+      The model is most sensitive to <strong>ramp speed and the platform team</strong> — both within our control — and least sensitive to hardware cost, which is where procurement attention naturally goes. Spend management attention where the numbers say.
+    </div>
+  </section>
+
+  <section id="assumptions" aria-labelledby="assumptions-h">
+    <h2 id="assumptions-h">5. What we have assumed and do not yet know</h2>
+    <p class="section-sub">The numbers stand or fall on a handful of assumptions Dexter and Siva should challenge directly.</p>
+    <div class="card"><div class="card-body">
+      <ul class="plain">
+        <li><strong>India day rates</strong> assume freelance/small-studio rates we can hire and hold. With an agency or Singapore contractors, the software line roughly triples. Test this first, with real candidate rates.</li>
+        <li><strong>Platform ops team at S$4,000/month</strong> is the largest recurring line and the least validated. It depends on contracted versus hired build and the support load 500 devices generate.</li>
+        <li><strong>Device life of 24 months</strong> rests on the recycling model (R-007); the field trial is what proves it. Units dying at 12 months doubles amortisation.</li>
+        <li><strong>Query volume of ~200 per device per month</strong> is a guess; the constrained scope (C-010) caps the damage. The CIS pilot will measure the real number.</li>
+        <li><strong>Retention positions are provisional (A-010).</strong> The storage line is small either way — the compliance cost of getting it wrong is not.</li>
+        <li><strong>CIS pricing is unresolved.</strong> Design-partner pricing moves break-even right and shifts recovery onto external agencies. Decide before the pilot, not after.</li>
+        <li><strong>The retainer is a placeholder</strong> and the one-off totals exclude it. A number is needed in that line before this estimate means anything to a bank account.</li>
+      </ul>
+    </div></div>
+  </section>
+
+  <section id="td-keeps" aria-labelledby="td-h">
+    <h2 id="td-h">6. What the Technical Director (Mahesh) keeps</h2>
+    <p class="section-sub">Of the 409 man-days in the full software build, Mahesh personally delivers 123 days (30%) worth ₹1,362,000 (S$18,160), leaving a “New Cost” of <strong>₹2,524,300 (S$33,657)</strong> payable to the India team.</p>
+
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <caption>The six lines kept in-house</caption>
+          <thead>
+            <tr><th scope="col">Work package</th><th scope="col">Role</th><th scope="col" class="num">Days</th><th scope="col" class="num">Cost (S$)</th><th scope="col">What it means</th></tr>
+          </thead>
+          <tbody>
+            <tr><td rowspan="2">Discovery &amp; architecture</td><td>Tech Lead / Architect</td><td class="num">12</td><td class="num">2,400</td><td>System design, data model, integration points</td></tr>
+            <tr><td>UI / UX Designer</td><td class="num">6</td><td class="num">560</td><td>User journeys for officer, control room, admin</td></tr>
+            <tr><td rowspan="2">AI / RAG assistant + guardrails</td><td>AI / RAG Engineer</td><td class="num">35</td><td class="num">5,600</td><td>Prompts, SOP retrieval, domain guardrails</td></tr>
+            <tr><td>Senior Full-stack Engineer</td><td class="num">10</td><td class="num">1,333</td><td>API layer: prompt routing, logging</td></tr>
+            <tr><td rowspan="2">Project management + ongoing tech lead</td><td>Project Manager</td><td class="num">40</td><td class="num">4,267</td><td>Stand-ups, sprint reviews, tracking</td></tr>
+            <tr><td>Tech Lead / Architect</td><td class="num">20</td><td class="num">4,000</td><td>Cross-package code review, architecture calls</td></tr>
+          </tbody>
+          <tfoot>
+            <tr><td colspan="2">Total kept by Technical Director</td><td class="num">123</td><td class="num">18,160</td><td>₹1,362,000</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Full build (S$51,817) − Mahesh’s own work (S$18,160) = New Cost to pay out (S$33,657).</strong> Roughly six months of part-time Technical Director effort across the build window: set the architecture, map the journeys, build the AI assistant and its guardrails, run the project, review the code.
+    </div>
+    <div class="callout warn">
+      The S$33,657 is the <strong>software line only</strong>. Device prototyping, security reviews, patent filing, legal, cloud setup, contingency, and the retainer sit outside it and are unaffected by which software lines the Technical Director keeps.
+    </div>
+  </section>
+
+</main>
+
+<footer class="site">
+  <div class="wrap">
+    <p>Companion model: <code>Sentinel_India_Build_Cost_Estimate.xlsx</code> · Narrative source: <a href="../project-context/build-cost-estimate.md">docs/project-context/build-cost-estimate.md</a>. Figures marked as guesses are judgement, not quotes.</p>
+  </div>
+</footer>
+
+</body>
+</html>
